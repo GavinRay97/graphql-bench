@@ -1,0 +1,53 @@
+url: http://localhost:8085/v1/graphql
+headers:
+  X-Hasura-Admin-Secret: my-secret
+queries:
+  - name: SearchAlbumsWithArtist
+    duration: 10s
+    rps: 400
+    assert:
+      results: 7
+    query: |
+      query SearchAlbumsWithArtist {
+        albums(where: {title: {_like: "%Rock%"}}) {
+          id
+          title
+          artist {
+            name
+            id
+          }
+        }
+      }
+  - name: AlbumByPK
+    duration: 10s
+    rps: 400
+    assert:
+      results: 1
+    query: |
+      query AlbumByPK {
+        albums_by_pk(id: 1) {
+          id
+          title
+        }
+      }
+  - name: AlbumsArtistTracksGenreAll
+    duration: 10s
+    rps: 400
+    query: |
+      query AlbumsArtistTracksGenreAll {
+        albums {
+          id
+          title
+          artist {
+            id
+            name
+          }
+          tracks {
+            id
+            name
+            genre {
+              name
+            }
+          }
+        }
+      }

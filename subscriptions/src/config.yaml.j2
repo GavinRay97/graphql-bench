@@ -1,0 +1,19 @@
+query: |
+  subscription ($id: Int!) {
+    test(where: {id: {_eq: $id}}) {
+      id
+      name
+      updated_at
+    }
+  }
+timePeriod: {{ time_period }}
+variables:
+  id: '1'
+headers: []
+template:
+  range:
+    start: {{ start }}
+    end: {{ end }}
+  headers: []
+  variables:
+    - id

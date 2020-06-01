@@ -1,0 +1,13 @@
+{
+  "name": "graphql-query-bench",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Gavin",
+  "license": "MIT",
+  "dependencies": {
+    "autocannon": "^4.6.0",
+    "autocannon-reporter": "^0.0.6",
+    "js-yaml": "^3.14.0"
+  },
+  "devDependencies": {}
+}
