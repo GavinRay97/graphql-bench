@@ -5,24 +5,32 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "compile": "tsc"
+    "compile": "tsc",
+    "start": "ts-node ./src/main.ts",
+    "knex:migrate:make": "ts-node ./node_modules/knex/bin/cli.js --knexfile ./knexfile.ts migrate:make -x ts",
+    "knex:migrate:latest": "ts-node ./node_modules/knex/bin/cli.js --knexfile ./knexfile.ts migrate:latest",
+    "knex:migrate:rollback": "ts-node ./node_modules/knex/bin/cli.js --knexfile ./knexfile.ts migrate:rollback"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@types/js-yaml": "^3.12.1",
+    "@types/lodash": "^4.14.154",
     "@types/node": "^11.9.5",
+    "dotenv": "^8.2.0",
     "js-yaml": "^3.13.1",
-    "knex": "^0.16.3",
+    "knex": "^0.21.1",
+    "lodash": "^4.17.15",
     "objection": "^1.6.3",
-    "pg": "^7.10.0",
-    "ws": "^6.1.4"
+    "pg": "^8.2.1",
+    "websocket-as-promised": "^1.0.1",
+    "ws": "^7.3.0"
   },
   "devDependencies": {
     "@types/graphql": "^14.0.0",
-    "@types/ws": "^6.0.1",
+    "@types/ws": "^7.2.4",
     "graphql": "^14.0.2",
-    "ts-node": "^8.0.3",
+    "ts-node": "^8.10.2",
     "typescript": "^3.4.1"
   }
 }

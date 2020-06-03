@@ -4,7 +4,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "sourceMap": true,
-    "noImplicitAny": true,
+    "noImplicitAny": false,
     "outDir": "./dist",
     "allowSyntheticDefaultImports": true,
     "removeComments": true,
@@ -13,7 +13,8 @@
     "pretty": true,
     "declaration": true,
     "skipLibCheck": true,
-    "lib": ["es6", "esnext.asynciterable"],
+    "esModuleInterop": true,
+    "lib": ["es6", "esnext.asynciterable", "ESNEXT"],
     "types": ["node"]
   },
   "include": ["./src"],

@@ -69,15 +69,10 @@ export class Config {
   public getNumberOfConnectionPerSecond(
     operations: OperationOptions[]
   ): number {
-    if (Array.isArray(this.data)) {
-      return null
-    } else {
-      const data = <configData>this.data
-      if (!data.timePeriod) {
-        return null
-      }
-      return Math.floor(operations.length / data.timePeriod)
-    }
+    if (Array.isArray(this.data)) return null
+    const data = <configData>this.data
+    if (!data.timePeriod) return null
+    return Math.floor(operations.length / data.timePeriod)
   }
 
   private generate(operation: configData): OperationOptions[] {
