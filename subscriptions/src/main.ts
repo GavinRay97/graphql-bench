@@ -67,7 +67,14 @@ class SocketManager {
 
   public closeSockets() {
     return Promise.all(
-      Object.values(this.connections).map((conn) => conn.socket.close())
+      Object.values(this.connections).map((conn) => {
+        conn.socket.sendPacked({
+          id: null,
+          type: 'connection_terminate',
+          payload: null,
+        })
+        conn.socket.close()
+      })
     )
   }
 
@@ -97,7 +104,11 @@ class SocketManager {
     const socketId = this.nextSocketId++
     try {
       await socket.open()
-      socket.sendPacked({ type: 'connection_init' })
+      socket.sendPacked({
+        id: null,
+        type: 'connection_init',
+        payload: this.config.headers,
+      })
       socket.sendPacked({
         id: String(socketId),
         type: 'start',
@@ -280,7 +291,7 @@ async function main() {
   const socketManagerParams = yamlConfigToSocketManagerParams(options)
   const socketManager = new SocketManager(socketManagerParams)
 
-  const MAX_CONNECTIONS = options.config.connections_per_second
+  const MAX_CONNECTIONS = options.config.max_connections
   const SPAWN_RATE = 1000 / options.config.connections_per_second
 
   const spawnFn = () =>
