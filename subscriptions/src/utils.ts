@@ -61,6 +61,7 @@ export interface SubscriptionBenchConfig {
 export interface QueryConfig {
   label: string
   duration: string
+  insert_payload_data: boolean
   max_connections: number
   connections_per_second: number
   query: string
@@ -83,6 +84,7 @@ export const yamlConfigToSocketManagerParams = (
   connectionsPerSecond: options.config.connections_per_second,
   pgConnectionString: options.db_connection_string,
   subscriptionString: options.config.query,
+  insertPayloadData: options.config.insert_payload_data ?? true,
 })
 
 export const COLORS = {

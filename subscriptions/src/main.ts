@@ -5,10 +5,10 @@ import {
   yamlConfigToSocketManagerParams,
   COLORS,
 } from './utils'
-import readline from 'readline'
 import WebSocket from 'ws'
 import WebSocketAsPromised from 'websocket-as-promised'
 import { Events, knexConnection } from './schema'
+import logUpdate from 'log-update'
 
 const DEBUG = process.env.DEBUG
 
@@ -49,6 +49,7 @@ export interface SockerManagerConfig {
   variables: object
   headers?: Record<string, string>
   maxConnections: number
+  insertPayloadData: boolean
   connectionsPerSecond: number
   pgConnectionString: string
   subscriptionString: string
@@ -68,11 +69,7 @@ class SocketManager {
   public closeSockets() {
     return Promise.all(
       Object.values(this.connections).map((conn) => {
-        conn.socket.sendPacked({
-          id: null,
-          type: 'connection_terminate',
-          payload: null,
-        })
+        conn.socket.sendPacked({ type: GQL.CONNECTION_TERMINATE })
         conn.socket.close()
       })
     )
@@ -102,22 +99,27 @@ class SocketManager {
     const label = this.config.label
     const socket = this.makeSocket()
     const socketId = this.nextSocketId++
+    const { insertPayloadData } = this.config
     try {
       await socket.open()
       socket.sendPacked({
-        id: null,
-        type: 'connection_init',
+        type: GQL.CONNECTION_INIT,
         payload: this.config.headers,
       })
       socket.sendPacked({
         id: String(socketId),
-        type: 'start',
+        type: GQL.START,
         payload: {
           query: this.config.subscriptionString,
           variables: this.queryArgGenerator.next().value,
         },
       })
-      const connection = new Connection({ id: socketId, label, socket })
+      const connection = new Connection({
+        id: socketId,
+        label,
+        socket,
+        insertPayloadData,
+      })
       this.connections[socketId] = connection
       return connection
     } catch (err) {
@@ -141,6 +143,7 @@ interface ConnectionParams {
   id: number
   label: string
   socket: WebSocketAsPromised
+  insertPayloadData: boolean
 }
 
 class Connection implements ConnectionParams {
@@ -149,11 +152,13 @@ class Connection implements ConnectionParams {
   public label: string
   public events: Array<any> = []
   public socket: WebSocketAsPromised
+  public insertPayloadData: boolean
 
-  constructor({ id, socket, label }: ConnectionParams) {
+  constructor({ id, socket, label, insertPayloadData }: ConnectionParams) {
     this.id = id
     this.socket = socket
     this.label = label
+    this.insertPayloadData = insertPayloadData
     this.configureMessageHandlers()
     if (DEBUG) {
       socket.onSend.addListener((data) => console.log('sent', data))
@@ -167,7 +172,7 @@ class Connection implements ConnectionParams {
       connection_id: this.id,
       label: this.label,
       event_number: this.eventNumber++,
-      event_data: payload,
+      event_data: this.insertPayloadData ? payload : { data: null },
       event_time: new Date().toISOString(),
     }
   }
@@ -182,8 +187,7 @@ class Connection implements ConnectionParams {
           this.events.push(event)
           break
         case GQL.ERROR:
-          const formatedErrs = this.formatErrors(data.payload.errors)
-          const error = this.makeEventRow({ payload: formatedErrs, err: true })
+          const error = this.makeEventRow({ payload: data.payload, err: true })
           if (DEBUG) console.log('CALLED GQL.ERROR CASE, GOT ERROR ROW', error)
           GLOBAL_ERROR_EVENT_COUNT++
           this.events.push(error)
@@ -191,19 +195,6 @@ class Connection implements ConnectionParams {
       }
       updateEventStatsStdout()
     })
-  }
-
-  private formatErrors(errors: any): FormatedError[] {
-    if (Array.isArray(errors)) return errors
-    if (errors && errors.errors) return this.formatErrors(errors.errors)
-    if (errors && errors.message) return [errors]
-    return [
-      {
-        name: 'FormatedError',
-        message: 'Unknown error',
-        originalError: errors,
-      },
-    ]
   }
 }
 
@@ -221,22 +212,16 @@ async function assertDatabaseConnection() {
   })
 }
 
-let hasPrintedOnce = false
 function updateEventStatsStdout() {
-  let rowOffset = hasPrintedOnce ? -3 : 0
-  if (!hasPrintedOnce) hasPrintedOnce = true
-  readline.moveCursor(process.stdout, 0, rowOffset) // moving three lines up
-  readline.cursorTo(process.stdout, 0) // then getting cursor at the begining of the line
-  readline.clearScreenDown(process.stdout) // clearing whatever is next or down to cursor
-  process.stdout.write(
+  logUpdate(
     COLORS.FG_CYAN +
-      `Socket count: ${GLOBAL_SOCKET_COUNT}\n` +
+      `Socket count: ${GLOBAL_SOCKET_COUNT} | ` +
       COLORS.RESET +
       COLORS.FG_GREEN +
-      `Total Data Events Received: ${GLOBAL_DATA_EVENT_COUNT}\n` +
+      `Data Events Received: ${GLOBAL_DATA_EVENT_COUNT} | ` +
       COLORS.RESET +
       COLORS.FG_RED +
-      `Total Error Events Received: ${GLOBAL_ERROR_EVENT_COUNT}\n` +
+      `Error Events Received: ${GLOBAL_ERROR_EVENT_COUNT} ` +
       COLORS.RESET
   )
 }
@@ -294,11 +279,15 @@ async function main() {
   const MAX_CONNECTIONS = options.config.max_connections
   const SPAWN_RATE = 1000 / options.config.connections_per_second
 
-  const spawnFn = () =>
-    socketManager.spawnConnection().then((socket) => {
+  // Need two counters to prevent more sockets being spawned than config set
+  let socketSpawned = 0
+  const spawnFn = () => {
+    socketSpawned++
+    return socketManager.spawnConnection().then((socket) => {
       GLOBAL_SOCKET_COUNT++
-      if (GLOBAL_SOCKET_COUNT == MAX_CONNECTIONS) clearInterval(spawnInterval)
+      if (socketSpawned >= MAX_CONNECTIONS) clearInterval(spawnInterval)
     })
+  }
 
   const spawnInterval = setInterval(spawnFn, SPAWN_RATE)
   process.on('SIGINT', () => exit(socketManager))
@@ -316,7 +305,7 @@ async function exit(socketManager: SocketManager) {
     console.log('Starting to close socket connections')
     await socketManager.closeSockets()
   } catch (error) {
-    console.error('Error while closing socket connections:', error)
+    console.log('Error while closing socket connections:', error)
   }
 
   try {
@@ -326,7 +315,7 @@ async function exit(socketManager: SocketManager) {
       `Inserted total of ${events.length} events for label ${socketManager.config.label}`
     )
   } catch (error) {
-    console.error('Error while inserting events:', error)
+    console.log('Error while inserting events:', error)
   }
 
   try {
@@ -334,7 +323,7 @@ async function exit(socketManager: SocketManager) {
     await knexConnection.destroy()
     console.log('Database connection destroyed')
   } catch (error) {
-    console.error('Error while destroying database connection:', error)
+    console.log('Error while destroying database connection:', error)
   }
 
   console.log('Now exiting the process')

@@ -15,7 +15,9 @@ headers:
 # Subscription Config
 config:
   # Label for the subscription events in database (MUST BE CHANGED AFTER EVERY RUN)
-  label: SearchAlbumsWithArtist0328
+  label: SearchAlbumsWithArtist01
+  # Whether to insert the payload data for subscriptions into the "event_data" column in DB
+  insert_payload_data: true
   # Maximum number of websocket connections
   max_connections: 100
   # Number of sockets to spawn per second until max reached
