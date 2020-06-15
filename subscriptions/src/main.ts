@@ -5,16 +5,14 @@ import {
   yamlConfigToSocketManagerParams,
   COLORS,
 } from './utils'
+import Reattempt from 'reattempt/dist/decorator'
 import WebSocket from 'ws'
 import WebSocketAsPromised from 'websocket-as-promised'
 import { Events, knexConnection } from './schema'
+import { observable, observe } from '@nx-js/observer-util'
 import logUpdate from 'log-update'
 
 const DEBUG = process.env.DEBUG
-
-let GLOBAL_DATA_EVENT_COUNT = 0
-let GLOBAL_ERROR_EVENT_COUNT = 0
-let GLOBAL_SOCKET_COUNT = 0
 
 /**
  * =================
@@ -36,6 +34,40 @@ let GLOBAL_SOCKET_COUNT = 0
  * - exit():
  *    Teardown handler. Awaits closing all socket connections, writing data to DB, and destroying DB connection.
  */
+
+/**
+ * Global Stat Observables
+ */
+
+const STATS_OBSERVABLE = observable({
+  DATA_EVENT_COUNT: 0,
+  ERROR_EVENT_COUNT: 0,
+  CONNECTED_SOCKETS: new Set(),
+})
+
+/**
+ * Any time values change in these stats, run the below function
+ * currently just updates the terminal output text with new data
+ *
+ * NOTE: This only works because updateEventStatsStdout() references
+ * variables from the observable function, so the Proxy knows to fire
+ */
+
+observe(() => updateEventStatsStdout())
+
+function updateEventStatsStdout() {
+  logUpdate(
+    COLORS.FG_CYAN +
+      `Socket count: ${STATS_OBSERVABLE.CONNECTED_SOCKETS.size} | ` +
+      COLORS.RESET +
+      COLORS.FG_GREEN +
+      `Data Events Received: ${STATS_OBSERVABLE.DATA_EVENT_COUNT} | ` +
+      COLORS.RESET +
+      COLORS.FG_RED +
+      `Error Events Received: ${STATS_OBSERVABLE.ERROR_EVENT_COUNT} ` +
+      COLORS.RESET
+  )
+}
 
 /**
  * =====================
@@ -85,41 +117,17 @@ class SocketManager {
       .insertGraph(this.allEvents)
   }
 
-  private makeSocket() {
-    const socketFactory = (url) =>
-      new WebSocket(url, 'graphql-ws', { headers: this.config.headers })
-    return new WebSocketAsPromised(this.config.endpoint, {
-      createWebSocket: (url) => socketFactory(url),
-      extractMessageData: (event) => event,
-      packMessage: (data) => JSON.stringify(data),
-      unpackMessage: (data) => JSON.parse(data as string),
-    } as any)
-  }
   public async spawnConnection() {
-    const label = this.config.label
-    const socket = this.makeSocket()
     const socketId = this.nextSocketId++
-    const { insertPayloadData } = this.config
+    const socketManagerConfig = this.config
+    const queryVariables = this.queryArgGenerator.next().value
     try {
-      await socket.open()
-      socket.sendPacked({
-        type: GQL.CONNECTION_INIT,
-        payload: this.config.headers,
-      })
-      socket.sendPacked({
-        id: String(socketId),
-        type: GQL.START,
-        payload: {
-          query: this.config.subscriptionString,
-          variables: this.queryArgGenerator.next().value,
-        },
-      })
       const connection = new Connection({
         id: socketId,
-        label,
-        socket,
-        insertPayloadData,
+        queryVariables,
+        socketManagerConfig,
       })
+      connection.startSubscription()
       this.connections[socketId] = connection
       return connection
     } catch (err) {
@@ -141,59 +149,111 @@ export type FormatedError = Error & {
 
 interface ConnectionParams {
   id: number
-  label: string
-  socket: WebSocketAsPromised
-  insertPayloadData: boolean
+  socketManagerConfig: SockerManagerConfig
+  queryVariables: object
 }
 
-class Connection implements ConnectionParams {
-  public id: number
+class Connection {
   public eventNumber = 1
-  public label: string
   public events: Array<any> = []
   public socket: WebSocketAsPromised
-  public insertPayloadData: boolean
+  public isReconnecting: boolean = false
 
-  constructor({ id, socket, label, insertPayloadData }: ConnectionParams) {
-    this.id = id
-    this.socket = socket
-    this.label = label
-    this.insertPayloadData = insertPayloadData
+  constructor(public props: ConnectionParams) {
+    this.socket = this.makeSocket()
     this.configureMessageHandlers()
-    if (DEBUG) {
-      socket.onSend.addListener((data) => console.log('sent', data))
-    }
+  }
+
+  private makeSocket() {
+    const { endpoint, headers } = this.props.socketManagerConfig
+    return new WebSocketAsPromised(endpoint, {
+      createWebSocket: (url) => new WebSocket(url, 'graphql-ws', { headers }),
+      extractMessageData: (event) => event,
+      packMessage: (data) => JSON.stringify(data),
+      unpackMessage: (data) => JSON.parse(data as string),
+    } as any)
+  }
+
+  // TODO: Make the retry configurable through config.yaml
+  @Reattempt({ times: 60, delay: 1000 })
+  public async startSubscription() {
+    const socket = this.socket
+    const { id, queryVariables } = this.props
+    const { headers, subscriptionString } = this.props.socketManagerConfig
+
+    if (DEBUG) console.log('Socket ID', id, 'attempting to start subscription')
+
+    await socket.open()
+    socket.sendPacked({
+      type: GQL.CONNECTION_INIT,
+      payload: headers,
+    })
+    socket.sendPacked({
+      id: String(id),
+      type: GQL.START,
+      payload: {
+        query: subscriptionString,
+        variables: queryVariables,
+      },
+    })
   }
 
   private makeEventRow({ payload, err }) {
+    const { label, insertPayloadData } = this.props.socketManagerConfig
     return {
+      label,
       is_error: err,
       operation_id: 1,
-      connection_id: this.id,
-      label: this.label,
+      connection_id: this.props.id,
       event_number: this.eventNumber++,
-      event_data: this.insertPayloadData ? payload : { data: null },
+      event_data: insertPayloadData ? payload : { data: null },
       event_time: new Date().toISOString(),
     }
   }
 
   private configureMessageHandlers() {
+    // On socket close:
+    this.socket.onClose.addListener(() => {
+      // Print debug message if enabled
+      if (DEBUG) console.log('Socket ID', this.props.id, 'closed')
+      // Remove socket ID from Observable ES6 Set of connected sockets
+      STATS_OBSERVABLE.CONNECTED_SOCKETS.delete(this.props.id)
+      // If the socket is not currently trying to reconnect, begin trying
+      if (!this.isReconnecting) this.startSubscription()
+      // Set reconnecting state to true
+      this.isReconnecting = true
+    })
+
+    // On socket open:
+    this.socket.onOpen.addListener(() => {
+      // Print debug message if enabled
+      if (DEBUG) console.log('Socket ID', this.props.id, 'connected')
+      // Add the socket ID to ES6 Set of connected sockets
+      STATS_OBSERVABLE.CONNECTED_SOCKETS.add(this.props.id)
+      // Set reconnecting state to false
+      this.isReconnecting = false
+    })
+
+    // If debug mode enabled, also set up generalized data logger
+    if (DEBUG) {
+      this.socket.onSend.addListener((data) => console.log('sent', data))
+    }
+
     this.socket.onUnpackedMessage.addListener((data) => {
       switch (data.type) {
         case GQL.DATA:
           const event = this.makeEventRow({ payload: data.payload, err: false })
           if (DEBUG) console.log('CALLED GQL.DATA CASE, GOT EVENT ROW', event)
-          GLOBAL_DATA_EVENT_COUNT++
+          STATS_OBSERVABLE.DATA_EVENT_COUNT++
           this.events.push(event)
           break
         case GQL.ERROR:
           const error = this.makeEventRow({ payload: data.payload, err: true })
-          if (DEBUG) console.log('CALLED GQL.ERROR CASE, GOT ERROR ROW', error)
-          GLOBAL_ERROR_EVENT_COUNT++
+          if (DEBUG) console.log('CALLED GQL.ERROR CASE, GOT ERROR ROW', data)
+          STATS_OBSERVABLE.ERROR_EVENT_COUNT++
           this.events.push(error)
           break
       }
-      updateEventStatsStdout()
     })
   }
 }
@@ -210,20 +270,6 @@ async function assertDatabaseConnection() {
     console.log(err)
     process.exit(1)
   })
-}
-
-function updateEventStatsStdout() {
-  logUpdate(
-    COLORS.FG_CYAN +
-      `Socket count: ${GLOBAL_SOCKET_COUNT} | ` +
-      COLORS.RESET +
-      COLORS.FG_GREEN +
-      `Data Events Received: ${GLOBAL_DATA_EVENT_COUNT} | ` +
-      COLORS.RESET +
-      COLORS.FG_RED +
-      `Error Events Received: ${GLOBAL_ERROR_EVENT_COUNT} ` +
-      COLORS.RESET
-  )
 }
 
 function prettyPrintConfig(options) {
@@ -279,12 +325,10 @@ async function main() {
   const MAX_CONNECTIONS = options.config.max_connections
   const SPAWN_RATE = 1000 / options.config.connections_per_second
 
-  // Need two counters to prevent more sockets being spawned than config set
   let socketSpawned = 0
   const spawnFn = () => {
     socketSpawned++
     return socketManager.spawnConnection().then((socket) => {
-      GLOBAL_SOCKET_COUNT++
       if (socketSpawned >= MAX_CONNECTIONS) clearInterval(spawnInterval)
     })
   }

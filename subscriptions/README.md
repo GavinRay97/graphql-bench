@@ -78,6 +78,7 @@ The next one will get `some_range: 2` and `another_range: 51`, and so on. When t
   - `npm install`
 - Create the `events` table using knex migrate with Yarn or NPM
   - `yarn knex:migrate:latest`
+  - `npm run knex:migrate:latest`
 - Confirm that an `events` table has been created inside of your database
 - Run the benchmark tool
   ```bash
