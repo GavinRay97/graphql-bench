@@ -8,8 +8,6 @@ const { makeOutputPath, assertResponse } = require('./utils')
 const makeOptions = (entry, config) => {
   // If assert.response set in YAML config, set up the validator function here
   const assertionHandler = assertResponse(entry)
-  // Default 10 connections concurrent, so split RPS between 10 connections
-  const connectionRate = entry.rps ? entry.rps / 10 : undefined
   // Return entry and config in options for context in case need to reference
   return {
     entry,
@@ -20,8 +18,8 @@ const makeOptions = (entry, config) => {
       headers: config.headers,
       duration: entry.duration,
       body: JSON.stringify({ query: entry.query, variables: entry.variables }),
-      connectionRate,
-      setupClient: assertionHandler,
+      overallRate: entry.rps,
+      // setupClient: assertionHandler,
     },
   }
 }
