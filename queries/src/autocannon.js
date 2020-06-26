@@ -16,9 +16,11 @@ const makeOptions = (entry, config) => {
       url: config.url,
       method: 'POST',
       headers: config.headers,
-      duration: entry.duration,
+      duration: entry.duration || 10,
+      amount: entry.amount, // if both duration and amount are set, amount is preferred
       body: JSON.stringify({ query: entry.query, variables: entry.variables }),
       overallRate: entry.rps,
+      connections: entry.connections || 10,
       // setupClient: assertionHandler,
     },
   }
@@ -39,7 +41,7 @@ function runBenchmark({ entry, config, autocannonOpts }) {
     })
     autocannon.track(instance)
     instance.on('done', resolve)
-    if (entry.rps) console.log(entry.rps, 'req/s')
+    if (entry.rps) console.log(entry.rps, 'req/s (max; realized throughput may vary)')
   })
 }
 
