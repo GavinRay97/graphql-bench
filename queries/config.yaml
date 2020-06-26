@@ -32,7 +32,6 @@ queries:
       }
   - name: AlbumsArtistTracksGenreAll
     amount: 1000
-    rps: 400
     connections: 20
     query: |
       query AlbumsArtistTracksGenreAll {
