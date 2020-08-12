@@ -8,7 +8,13 @@ Temporary readme while handling getting V2 (contents of the `/app` folder) compl
 
 Zero-dependency single file `index.html` + `index.js` web report dashboard that runs without webserver (just doubleclick the file).
 
-**Demo**:
+**Live App Demo:**
+
+https://dbx6f.csb.app/
+
+
+**Video Demo**:
+
 ![](./hasura-bench-report.gif)
 
 ## Unified CLI using oclif
