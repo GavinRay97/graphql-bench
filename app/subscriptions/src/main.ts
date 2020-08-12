@@ -186,7 +186,7 @@ class Connection {
     await socket.open()
     socket.sendPacked({
       type: GQL.CONNECTION_INIT,
-      payload: headers,
+      payload: { headers },
     })
     socket.sendPacked({
       id: String(id),
