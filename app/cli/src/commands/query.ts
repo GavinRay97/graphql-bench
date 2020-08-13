@@ -7,7 +7,7 @@ import { BenchmarkRunner } from '../../../queries/src/main'
 import type { GlobalConfig } from '../../../queries/src/executors/base/types'
 
 export default class Query extends Command {
-  static description = 'Benchmark GraphQL queries or mutations'
+  static description = 'benchmark queries or mutations'
 
   static examples = [
     `$ graphql-bench query --config ./config.query.yaml --outfile results.json`,
@@ -34,10 +34,8 @@ export default class Query extends Command {
     }),
   }
 
-  static args = [{ name: 'file' }]
-
   async run() {
-    const { args, flags } = this.parse(Query)
+    const { flags } = this.parse(Query)
 
     // Oclif, can't figure out how to generically type flags =/
     const executor = new BenchmarkRunner(

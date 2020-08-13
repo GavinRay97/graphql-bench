@@ -45,16 +45,6 @@ const STATS_OBSERVABLE = observable({
   CONNECTED_SOCKETS: new Set(),
 })
 
-/**
- * Any time values change in these stats, run the below function
- * currently just updates the terminal output text with new data
- *
- * NOTE: This only works because updateEventStatsStdout() references
- * variables from the observable function, so the Proxy knows to fire
- */
-
-observe(() => updateEventStatsStdout())
-
 function updateEventStatsStdout() {
   logUpdate(
     COLORS.FG_CYAN +
@@ -87,7 +77,7 @@ export interface SockerManagerConfig {
   subscriptionString: string
 }
 
-class SocketManager {
+export class SocketManager {
   private nextSocketId = 1
   public connections: { [id: number]: Connection } = {}
   public config: SockerManagerConfig
@@ -292,8 +282,20 @@ function prettyPrintConfig(options) {
  * =====================
  */
 
-async function main() {
-  const options: SubscriptionBenchConfig = require('./utils').config
+export async function main(opts?: SubscriptionBenchConfig) {
+  const options: SubscriptionBenchConfig = opts || require('./utils').config
+
+  /**
+   * Any time values change in these stats, run the below function
+   * currently just updates the terminal output text with new data
+   *
+   * NOTE: This only works because updateEventStatsStdout() references
+   * variables from the observable function, so the Proxy knows to fire
+   */
+
+  observe(() => {
+    updateEventStatsStdout()
+  })
 
   /**
    * Logging
@@ -373,11 +375,3 @@ async function exit(socketManager: SocketManager) {
   console.log('Now exiting the process')
   process.exit(1)
 }
-
-/**
- * =====================
- *  INVOKE APPLICATION
- * =====================
- */
-
-main()

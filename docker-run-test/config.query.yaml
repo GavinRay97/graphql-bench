@@ -3,7 +3,7 @@ headers:
   X-Hasura-Admin-Secret: my-secret
 queries:
   - name: SearchAlbumsWithArtist
-    tools: [wrk2, k6, autocannon]
+    tools: [k6, wrk2, autocannon]
     execution_strategy: REQUESTS_PER_SECOND
     rps: 500
     duration: 5s

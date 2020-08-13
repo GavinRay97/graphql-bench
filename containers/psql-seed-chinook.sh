@@ -1,3 +1,5 @@
+#!/bin/bash
+
 PGUSER=postgres
 PGPASS=postgrespassword
 PGADDRESS=localhost:5430

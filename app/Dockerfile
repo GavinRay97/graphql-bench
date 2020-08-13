@@ -18,8 +18,10 @@ RUN apk add --update alpine-sdk libgcc openssl-dev zlib-dev \
 # Final layer, copy both wrk2 and k6 binaries and the Node app source code
 FROM base AS node-builder
 WORKDIR /app
+ENV LUA_PATH="/app/queries/bin/wrk/?.lua;;"
 COPY --from=loadimpact/k6:0.27.0 /usr/bin/k6 ${k6_binary_path}
 COPY --from=wrk-builder ${wrk_binary_path} ${wrk_binary_path}
-COPY package.json package.json
-COPY queries queries
-COPY subscriptions subscriptions
+COPY . .
+RUN yarn install
+
+ENTRYPOINT ["./cli/bin/run"]

@@ -60,7 +60,8 @@ export interface SubscriptionBenchConfig {
 
 export interface QueryConfig {
   label: string
-  duration: string
+  // TODO: Make the benchmark stop after optional duration?
+  duration?: string
   insert_payload_data: boolean
   max_connections: number
   connections_per_second: number

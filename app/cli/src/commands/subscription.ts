@@ -1,31 +1,38 @@
+import * as path from 'path'
+import * as fs from 'fs-extra'
+import * as yaml from 'js-yaml'
+
 import { Command, flags } from '@oclif/command'
+import { main as runSubscriptionBenchmark } from '../../../subscriptions/src/main'
+import { SubscriptionBenchConfig } from '../../../subscriptions/src/utils'
 
 export default class Subscription extends Command {
-  static description = 'Benchmark GraphQL subscriptions'
+  static description = 'benchmark subscriptions'
 
   static examples = [
-    `$ graphql-bench hello
-hello world from ./src/hello.ts!
-`,
+    `$ graphql-bench subscription --config ./config.subscription.yaml`,
   ]
 
   static flags = {
     help: flags.help({ char: 'h' }),
-    // flag with a value (-n, --name=VALUE)
-    name: flags.string({ char: 'n', description: 'name to print' }),
-    // flag with no value (-f, --force)
-    force: flags.boolean({ char: 'f' }),
+    config: flags.string({
+      char: 'c',
+      required: true,
+      multiple: false,
+      description: 'Filepath to YAML config file for subscription benchmarks',
+      parse: (filepath) => {
+        const pathToFile = path.join(process.cwd(), filepath)
+        const configFile = fs.readFileSync(pathToFile, 'utf-8')
+        return yaml.load(configFile)
+      },
+    }),
   }
 
-  static args = [{ name: 'file' }]
-
   async run() {
-    const { args, flags } = this.parse(Subscription)
+    const { flags } = this.parse(Subscription)
 
-    const name = flags.name ?? 'world'
-    this.log(`hello ${name} from ./src/commands/hello.ts`)
-    if (args.file && flags.force) {
-      this.log(`you input --force and --file: ${args.file}`)
-    }
+    await runSubscriptionBenchmark(
+      (flags.config as unknown) as SubscriptionBenchConfig
+    )
   }
 }
