@@ -165,11 +165,11 @@ const reconstructHdrHistogramFromText = (text: string) =>
 export const isHttpUrl = (urlString) =>
   urlString.indexOf("http://") === 0 || urlString.indexOf("https://") === 0;
 
-export const promisifiedRequest = (url):Promise<string>=> {
+export const promisifiedRequest = (url): Promise<string> => {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       res.setEncoding("utf8");
-      let body:string = "";
+      let body: string = "";
       res.on("data", (data) => {
         body += data;
       });
