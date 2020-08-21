@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import readline from 'readline'
+import https from 'https'
 
 import * as hdr from 'hdr-histogram-js'
 
@@ -160,3 +161,24 @@ function reconstructHdrHistogramFromParsed(
 
 const reconstructHdrHistogramFromText = (text: string) =>
   reconstructHdrHistogramFromParsed(parseHdrHistogram(text))
+
+export const isHttpUrl = (urlString) =>
+  urlString.indexOf("http://") === 0 || urlString.indexOf("https://") === 0;
+
+export const promisifiedRequest = (url):Promise<string>=> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      res.setEncoding("utf8");
+      let body:string = "";
+      res.on("data", (data) => {
+        body += data;
+      });
+      res.on("end", () => {
+        return resolve(body);
+      });
+      res.on("error", (error) => {
+        return reject(error);
+      });
+    });
+  });
+};
