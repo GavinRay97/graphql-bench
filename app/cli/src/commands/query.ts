@@ -75,7 +75,7 @@ export default class Query extends Command {
       'cd .. \
       cd auto-test \
       && git commit -am "test" \
-      && git push\
+      && git push \
       && echo "test"'
     );
     shell.exec('ls')
