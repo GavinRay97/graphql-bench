@@ -2,8 +2,8 @@
 
 00000000: ## --------------------------------------------------
 00README: ## RECOMMENDED PROCESS: setup_containers -> seed_chinook_database -> build_local_docker_image -> run_docker_query_bench
-00TIPS: 	## You can alter the query & subscription benchmark config in ./docker-run-test/config.(query|subscription).yaml
-01TIPS: 	## By default it works with the Hasura & Chinook setup provided here.
+00TIPS:   ## You can alter the query & subscription benchmark config in ./docker-run-test/config.(query|subscription).yaml
+01TIPS:   ## By default it works with the Hasura & Chinook setup provided here.
 88888888: ## --------------------------------------------------
 
 build_local_docker_image: ## Builds ands tags a local docker image of graphql-bench
