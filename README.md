@@ -87,6 +87,8 @@ EXAMPLE
   $ graphql-bench subscription --config ./config.subscription.yaml
 ```
 
+---
+
 #### Queries/Mutations
 
 ##### Config
@@ -184,7 +186,7 @@ docker run --net=host -v "$PWD":/app/tmp -it \
 ```sh
 cd cli
 yarn install
-./bin/run query --help
+./bin/run query  --config="<query YAML config file path here>" --outfile="report.json"
 ```
 
 ##### Usage Guide
@@ -193,6 +195,8 @@ yarn install
 - Save the output to a file, IE `report.json` 
 - Inspect `report.json` to view detailed statistics and histograms
 - Upload the `report.json` to the web viewer app for visual metrics
+
+---
 
 #### Subscriptions
 
@@ -300,6 +304,8 @@ yarn install
   ❯ Database connection destroyed
   ❯ Now exiting the process
   ```
+
+---
 
 ### Programmatic API
 
